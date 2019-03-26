@@ -103,11 +103,13 @@ void send_data(SOCKET sAccept,char* ct,char* filename)
 		if (SOCKET_ERROR == send(sAccept, buf, strlen(buf), 0))
 		{
 			printf("send() Failed:%d\n", WSAGetLastError());
-			return -1;
 		}
 		if (feof(sendfile))
-			return 0;
+			break;
 	}
+
+	//printf("bye bye");
+	fclose(sendfile);
 
 	closesocket(sAccept);
 }
