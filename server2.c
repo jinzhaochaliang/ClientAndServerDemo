@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <process.h>
+#include <time.h>
 
 #define BUF_LENGTH 1024
 #define MIN_BUF 128
@@ -11,7 +12,10 @@
 unsigned WINAPI RequestHandler(void *arg);
 char* ContentType(char* file);
 void send_data(SOCKET sAccept, char* ct, char* fileName);
-void send_not_found(SOCKET sAccept);
+void send_error_400(SOCKET sAccept);
+void send_error_404(SOCKET sAccept);
+void send_homepage(SOCKET sAccept);
+void send_timepage(SOCKET sAccept);
 
 unsigned WINAPI RequestHandler(void *arg) {
 	SOCKET sAccept = (SOCKET)arg;
@@ -23,19 +27,29 @@ unsigned WINAPI RequestHandler(void *arg) {
 	recv(sAccept, buf, BUF_LENGTH, 0);
 	//是否为HTTP请求
 	if (strstr(buf, "HTTP/") == NULL) {
-		send_not_found(sAccept);
+		send_error_400(sAccept);
 		closesocket(sAccept);
 		return 1;
 	}
 
 	strcpy(method, strtok(buf, " /"));
 	if (strcmp(method, "GET")) {
-		send_not_found(sAccept);
+		send_error_400(sAccept);
 	}
 
 	strcpy(filename, strtok(NULL, " /"));
+	if (!strcmp(filename, "HTTP")) {
+		send_homepage(sAccept);		
+	}
 	strcpy(ct, ContentType(filename));
-	send_data(sAccept, ct, filename);
+	//printf(filename);
+	if(!strcmp(filename,"time.html")){
+		//printf("1");
+		send_timepage(sAccept);	
+	}
+	else {
+		send_data(sAccept, ct, filename);
+	}
 	return 0;
 }
 
@@ -51,14 +65,72 @@ char* ContentType(char* file) {
 		return "text/plain";
 }
 
+void send_homepage(SOCKET sAccept) {
 
-void send_not_found(SOCKET sAccept)
+	char proto[] = "HTTP/1.0 200 OK\r\n";
+	char servname[] = "Server:simple web server\r\n";
+	char clen[] = "Content-length:2048\r\n";
+	char ctype[] = "Content-type:text/html\r\n\r\n";
+	char content[] = "<html><head></head><body><h1>Welcome to the CNAI\
+Demo Server</h1><p>Why not visit: <ul><li><a href=\"http://netbook.cs.pu\
+rdue.edu\">Netbook Home Page</a><li><a href=\"http://www.comerbooks.com\"\
+>Comer Books Home Page</a></ul></body></html>\n";
+
+	send(sAccept, proto, strlen(proto), 0);
+	send(sAccept, servname, strlen(servname), 0);
+	send(sAccept, clen, strlen(clen), 0);
+	send(sAccept, ctype, strlen(ctype), 0);
+	send(sAccept, content, strlen(content), 0);
+
+	closesocket(sAccept);
+}
+void send_timepage(SOCKET sAccept) {
+
+	char proto[] = "HTTP/1.0 200 OK\r\n";
+	char servname[] = "Server:simple web server\r\n";
+	char clen[] = "Content-length:2048\r\n";
+	char ctype[] = "Content-type:text/html\r\n\r\n";
+	char content[200] = "";
+	strcat(content,"<html><head></head><body><h1>The current date is: ");
+	time_t timep;
+	time(&timep);
+	strcat(content, "time:");
+	strcat(content, ctime(&timep));
+	strcat(content, "</h1></body></html>\n");
+
+	send(sAccept, proto, strlen(proto), 0);
+	send(sAccept, servname, strlen(servname), 0);
+	send(sAccept, clen, strlen(clen), 0);
+	send(sAccept, ctype, strlen(ctype), 0);
+	send(sAccept, content, strlen(content), 0);
+
+	closesocket(sAccept);
+}
+
+void send_error_400(SOCKET sAccept)
 {
 	char proto[] = "HTTP/1.0 400 Bad Request\r\n";
 	char servname[] = "Server:simple web server\r\n";
 	char clen[] = "Content-length:2048\r\n";
 	char ctype[] = "Content-type:text/html\r\n\r\n";
-	char content[] = "<HTML><HEAD><TITLE>NETWORK</TITLE></HEAD><BODY>ERROR</BODY></HTML>";
+	char content[] = "<html><head></head><body><h1>Error 400</h1><p>The server couldn't understand your request.</body></html>\n";
+
+	send(sAccept, proto, strlen(proto), 0);
+	send(sAccept, servname, strlen(servname), 0);
+	send(sAccept, clen, strlen(clen), 0);
+	send(sAccept, ctype, strlen(ctype), 0);
+	send(sAccept, content, strlen(content), 0);
+
+	closesocket(sAccept);
+}
+
+void send_error_404(SOCKET sAccept)
+{
+	char proto[] = "HTTP/1.0 404 Not Found\r\n";
+	char servname[] = "Server:simple web server\r\n";
+	char clen[] = "Content-length:2048\r\n";
+	char ctype[] = "Content-type:text/html\r\n\r\n";
+	char content[] = "<html><head></head><body><h1>Error 404</h1><p>Document not found.</body></html>\n";
 
 	send(sAccept, proto, strlen(proto), 0);
 	send(sAccept, servname, strlen(servname), 0);
@@ -82,7 +154,7 @@ void send_data(SOCKET sAccept,char* ct,char* filename)
 
 	sprintf(ctype, "Content-type:%s\r\n\r\n", ct);
 	if (sendfile== NULL) {
-		send_not_found(sAccept);
+		send_error_404(sAccept);
 		return;
 	}
 
@@ -90,11 +162,6 @@ void send_data(SOCKET sAccept,char* ct,char* filename)
 	send(sAccept, servname, strlen(servname), 0);
 	send(sAccept, clen, strlen(clen), 0);
 	send(sAccept, ctype, strlen(ctype), 0);
-
-
-	//while (fgets(buf, BUF_LENGTH, sendfile) != NULL) {
-	//	send(sAccept, buf, strlen(buf), 0);
-	//}
 
 	while (1) {
 		memset(buf, 0, sizeof(buf));       //缓存清0
